@@ -7,6 +7,15 @@ require "cmd/shared_examples/args_parse"
 RSpec.describe Homebrew::DevCmd::Audit do
   it_behaves_like "parseable arguments"
 
+  it "audits a Formula and Cask", :cask, :integration_test do
+    setup_test_formula "testball"
+
+    expect { brew "audit", "--formula", "--skip-style", "--only=revision", "testball" }
+      .to be_a_success
+    expect { brew "audit", "--cask", "--skip-style", "--only=description", "local-caffeine" }
+      .to be_a_success
+  end
+
   describe "#run" do
     subject(:audit) { described_class.new(["--tap=homebrew/test"]) }
 

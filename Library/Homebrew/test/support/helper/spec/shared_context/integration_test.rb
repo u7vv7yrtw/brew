@@ -44,6 +44,28 @@ end
 
 RSpec::Matchers.define_negated_matcher :be_a_failure, :be_a_success
 
+RSpec.shared_examples "a documented command" do |command, shell: false|
+  T.bind(self, T.class_of(RSpec::Core::ExampleGroup))
+
+  it "shows its help", :integration_test,
+     documented_command: T.cast(command, String), documented_command_shell: T.cast(shell, T::Boolean) do
+    T.bind(self, RSpec::Core::ExampleGroup)
+    example = RSpec.current_example
+    raise "Current RSpec example is unavailable" if example.nil?
+
+    documented_command = T.cast(example.metadata.fetch(:documented_command), String)
+    documented_command_shell = T.cast(example.metadata.fetch(:documented_command_shell), T::Boolean)
+
+    expect do
+      if documented_command_shell
+        T.unsafe(self).brew_sh("help", documented_command)
+      else
+        T.unsafe(self).brew("help", documented_command)
+      end
+    end.to be_a_success
+  end
+end
+
 module Test
   module Helper
     module IntegrationTest

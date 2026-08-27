@@ -33,12 +33,15 @@ RSpec.describe Homebrew::DevCmd::Cat do
     cat.run
   end
 
-  it "prints the content of a given Formula", :integration_test do
+  it "prints the content of a given Formula and Cask", :cask, :integration_test do
     formula_file = setup_test_formula "testball"
-    content = formula_file.read
 
     expect { brew "cat", "testball" }
-      .to output(content).to_stdout
+      .to output(formula_file.read).to_stdout
+      .and not_to_output.to_stderr
+      .and be_a_success
+    expect { brew "cat", "--cask", cask_path("local-caffeine") }
+      .to output(cask_path("local-caffeine").read).to_stdout
       .and not_to_output.to_stderr
       .and be_a_success
   end

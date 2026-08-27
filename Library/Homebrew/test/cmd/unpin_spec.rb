@@ -7,20 +7,17 @@ require "cmd/unpin"
 RSpec.describe Homebrew::Cmd::Unpin do
   it_behaves_like "parseable arguments"
 
-  it "unpins a Formula's version", :integration_test do
+  it "unpins Formula and Cask versions", :cask, :integration_test do
     setup_test_formula "testball", tab_attributes: { installed_on_request: true }
     Formula["testball"].pin
-
-    expect { brew "unpin", "testball" }.to be_a_success
-  end
-
-  it "unpins a Cask's version", :cask do
     cask = Cask::CaskLoader.load("local-caffeine")
     InstallHelper.stub_cask_installation(cask)
     cask.pin
 
-    expect { described_class.new(["--cask", "local-caffeine"]).run }
+    expect { brew "unpin", "testball" }.to be_a_success
+    expect { brew "unpin", "--cask", "local-caffeine" }
       .to not_to_output.to_stderr
+      .and be_a_success
 
     expect(cask).not_to be_pinned
   end

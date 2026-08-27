@@ -560,7 +560,7 @@ RSpec.describe Homebrew::Cmd::InstallCmd do
   end
 
   context "when installing Formulae" do
-    it "builds from source and pours a keg-only bottle", :integration_test do
+    it "installs Formulae and a Cask", :cask, :integration_test do
       source_formula_name = "sourceball"
       source_formula_prefix = HOMEBREW_CELLAR/source_formula_name/"0.1"
       bottle_formula_name = "testball_bottle"
@@ -581,7 +581,7 @@ RSpec.describe Homebrew::Cmd::InstallCmd do
       with_env(HOMEBREW_NO_INSTALL_FROM_API: "1") do
         expect do
           brew "install", "--yes", source_formula_name, bottle_formula_name,
-               "HOMEBREW_NO_INSTALL_FROM_API" => "1"
+               "HOMEBREW_NO_INSTALL_FROM_API" => "1", "HOMEBREW_TEST_GENERIC_OS" => "1"
         end
           .to output(/#{Regexp.escape(source_formula_prefix)}.*#{Regexp.escape(bottle_formula_prefix)}/m).to_stdout
           .and output(/✔︎.*/m).to_stderr
@@ -591,6 +591,12 @@ RSpec.describe Homebrew::Cmd::InstallCmd do
       expect(bottle_formula_prefix/"foo/test").not_to be_a_file
       expect(bottle_formula_prefix/"bin/helloworld").to be_a_file
       expect(HOMEBREW_PREFIX/"bin/helloworld").not_to be_a_file
+
+      appdir = mktmpdir
+      expect { brew "install", "--cask", "--no-ask", "--appdir=#{appdir}", cask_path("local-caffeine") }
+        .to output(/local-caffeine was successfully installed/).to_stdout
+        .and be_a_success
+      expect(appdir/"Caffeine.app").to be_a_directory
     end
   end
 
@@ -625,7 +631,8 @@ RSpec.describe Homebrew::Cmd::InstallCmd do
         expect do
           brew "install", "-y", formula_name, "--HEAD",
                "HOMEBREW_DOWNLOAD_CONCURRENCY" => "1",
-               "HOMEBREW_NO_INSTALL_FROM_API"  => "1"
+               "HOMEBREW_NO_INSTALL_FROM_API"  => "1",
+               "HOMEBREW_TEST_GENERIC_OS"      => "1"
         end
           .to output(/#{Regexp.escape(testball1_prefix)}/o).to_stdout
           .and output(/Cloning into/).to_stderr

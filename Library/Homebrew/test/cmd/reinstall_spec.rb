@@ -227,7 +227,7 @@ RSpec.describe Homebrew::Cmd::Reinstall do
     expect { cmd.run }.to output(/Error: one: gzip decompression failed/).to_stderr
   end
 
-  it "reinstalls a Formula", :integration_test do
+  it "reinstalls a Formula and Cask", :cask, :integration_test do
     formula_name = "testball_bottle"
     formula_prefix = HOMEBREW_CELLAR/formula_name/"0.1"
     formula_bin = formula_prefix/"bin"
@@ -237,10 +237,19 @@ RSpec.describe Homebrew::Cmd::Reinstall do
 
     expect(formula_bin).not_to exist
 
-    expect { brew "reinstall", formula_name }
+    expect { brew "reinstall", formula_name, "HOMEBREW_TEST_GENERIC_OS" => "1" }
       .to output(/Reinstalling #{formula_name}/).to_stdout
       .and output(/✔︎.*/m).to_stderr
       .and be_a_success
     expect(formula_bin).to exist
+
+    cask = Cask::CaskLoader.load(cask_path("local-caffeine"))
+    InstallHelper.stub_cask_installation(cask)
+    expect do
+      brew "reinstall", "--cask", "--no-ask", "--appdir=#{Cask::Config::DEFAULT_DIRS_PATHNAMES[:appdir]}",
+           cask_path("local-caffeine")
+    end
+      .to output(/local-caffeine was successfully installed/).to_stdout
+      .and be_a_success
   end
 end
