@@ -135,9 +135,7 @@ module OS
           tier = 2
           who = +"We"
           remediation = nil
-          what = if OS::Mac.version.prerelease?
-            "pre-release version."
-          elsif OS::Mac.version.outdated_release?
+          what = if OS::Mac.version.outdated_release?
             tier = 3
             who << " (and Apple)"
             remediation = <<~EOS
@@ -145,6 +143,11 @@ module OS
               #{Formatter.url("https://www.macports.org")}
             EOS
             "old version."
+          elsif ::Hardware::CPU.intel?
+            tier = 3
+            "Intel configuration."
+          elsif OS::Mac.version.prerelease?
+            "pre-release version."
           end
           return if what.blank?
 
@@ -157,36 +160,6 @@ module OS
             EOS
             remediation:,
             tier:,
-          )
-        end
-
-        sig { returns(T.nilable(::Homebrew::Diagnostic::Finding)) }
-        def check_for_opencore
-          return if ::Hardware::CPU.physical_cpu_arm64?
-
-          # https://dortania.github.io/OpenCore-Legacy-Patcher/UPDATE.html#checking-oclp-and-opencore-versions
-          begin
-            opencore_version = Utils.safe_popen_read("/usr/sbin/nvram",
-                                                     "4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102:opencore-version").split[1]
-            oclp_version = Utils.safe_popen_read("/usr/sbin/nvram",
-                                                 "4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102:OCLP-Version").split[1]
-            return if opencore_version.blank? || oclp_version.blank?
-          rescue ErrorDuringExecution
-            return
-          end
-
-          oclp_support_tier = if ::Hardware::CPU.features.include?(:pclmulqdq) && !OS::Mac.version.outdated_release?
-            2
-          else
-            3
-          end
-
-          ::Homebrew::Diagnostic::Finding.new(
-            <<~EOS,
-              You have booted macOS using OpenCore Legacy Patcher.
-              We do not provide support for this configuration.
-            EOS
-            tier: oclp_support_tier,
           )
         end
 
