@@ -84,6 +84,40 @@ RSpec.describe Homebrew::DevCmd::Tests do
         expect(invoked_arguments).to end_with("--", "test/warnings_spec.rb")
       end
     end
+
+    context "when sharding tests" do
+      let(:args) { ["--shard=2/2"] }
+
+      it "runs only the selected shard" do
+        allow(Dir).to receive(:glob).with("test/**/*_spec.rb")
+                                    .and_return(%w[test/a_spec.rb test/b_spec.rb test/c_spec.rb test/d_spec.rb])
+        allow(File).to receive(:size).and_call_original
+        allow(File).to receive(:size).with("test/a_spec.rb").and_return(8)
+        allow(File).to receive(:size).with("test/b_spec.rb").and_return(7)
+        allow(File).to receive(:size).with("test/c_spec.rb").and_return(6)
+        allow(File).to receive(:size).with("test/d_spec.rb").and_return(1)
+        invoked_arguments = T.let([], T::Array[String])
+        allow(tests).to receive(:system) do |*arguments|
+          invoked_arguments = arguments
+          system "/usr/bin/true"
+        end
+
+        tests.run
+
+        expect(invoked_arguments).to end_with("--", "test/b_spec.rb", "test/c_spec.rb")
+      end
+    end
+  end
+
+  describe "#ensure_test_dependency!" do
+    include Test::Helper::Dependencies
+
+    it "fails when a dependency is missing on CI" do
+      ENV["CI"] = "1"
+
+      expect { ensure_test_dependency!(false, "Dependency is not installed.") }
+        .to raise_error(RuntimeError, "Dependency is not installed.")
+    end
   end
 
   describe "#check_test_environment!", :needs_linux do

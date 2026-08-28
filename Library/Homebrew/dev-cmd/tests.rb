@@ -42,13 +42,15 @@ module Homebrew
         flag   "--only=",
                description: "Run only `<test_script>_spec.rb`. Appending `:<line_number>` will start at a " \
                             "specific line."
+        flag   "--shard=",
+               description: "Run only `<index>` of `<total>` test shards."
         flag   "--profile=",
                description: "Output the <n> slowest tests. When run without `--no-parallel` this will output " \
                             "the slowest tests for each parallel test process."
         flag   "--seed=",
                description: "Randomise tests with the specified <value> instead of a random seed."
 
-        conflicts "--changed", "--only"
+        conflicts "--changed", "--only", "--shard"
         conflicts "--stackprof", "--vernier", "--ruby-prof"
 
         named_args :none
@@ -146,6 +148,25 @@ module Homebrew
 
           bundle_args = os_bundle_args(bundle_args)
           files = os_files(files)
+          if (shard = args.shard)
+            match = shard.match(%r{\A(\d+)/(\d+)\z})
+            raise UsageError, "Invalid `--shard` argument: #{shard}" unless match
+
+            shard_index = match[1].to_i
+            shard_count = match[2].to_i
+            if shard_count <= 1 || shard_index < 1 || shard_index > shard_count
+              raise UsageError, "Invalid `--shard` argument: #{shard}"
+            end
+
+            shards = Array.new(shard_count) { [] }
+            shard_sizes = Array.new(shard_count, 0)
+            files.sort_by { |file| -File.size(file) }.each do |file|
+              smallest_shard_index = shard_sizes.each_index.min_by { |index| shard_sizes[index] } || 0
+              shards[smallest_shard_index] << file
+              shard_sizes[smallest_shard_index] += File.size(file)
+            end
+            files = shards.fetch(shard_index - 1)
+          end
           if files.blank?
             if args.changed?
               opoo "No tests are available to run on this operating system."

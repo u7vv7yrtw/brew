@@ -50,10 +50,7 @@ jobs:
         run: brew install-bundler-gems --groups=style,typecheck
 
       - name: Install actionlint, shellcheck and shfmt
-        uses: Homebrew/actions/cache-homebrew-prefix@a657b8b0cd35d0f65cce41fce9b24cf054b49869 # 2026.08.24.1
-        with:
-          install: actionlint shellcheck shfmt
-          workflow-key: tests-syntax
+        run: brew install actionlint shellcheck shfmt
 
       - name: Cache style cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -208,11 +205,9 @@ jobs:
           brew update-test --to-tag
           brew update-test --commit=HEAD
 
-  tests:
+  tests_online:
     name: ${{ matrix.name }}
-    needs: syntax
-    runs-on: ${{ matrix.runs-on }}
-    timeout-minutes: 30
+    if: github.repository_owner == 'Homebrew'
     permissions:
       contents: read
       code-quality: write
@@ -221,122 +216,190 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: tests (online)
-            test-flags: --online --coverage --profile 3
+          - name: tests (online, 1/2)
+            test-flags: --online --coverage --profile 3 --shard=1/2
             runs-on: ubuntu-latest
-          - name: tests (generic OS)
-            test-flags: --generic --coverage --profile 3
+            online: true
+            load_only: false
+          - name: tests (online, 2/2)
+            test-flags: --online --coverage --profile 3 --shard=2/2
             runs-on: ubuntu-latest
-          - name: tests (Linux)
-            test-flags: --coverage --profile 3
+            online: true
+            load_only: false
+    uses: ./.github/workflows/run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      test_flags: ${{ matrix.test-flags }}
+      runs_on: ${{ matrix.runs-on }}
+      online: ${{ matrix.online }}
+      load_only: ${{ matrix.load_only }}
+    secrets:
+      codecov_token: ${{ secrets.CODECOV_TOKEN }}
+
+  tests_generic_os:
+    name: ${{ matrix.name }}
+    if: github.repository_owner == 'Homebrew'
+    permissions:
+      contents: read
+      code-quality: write
+      pull-requests: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: tests (generic OS, 1/2)
+            test-flags: --generic --coverage --profile 3 --shard=1/2
+            runs-on: ubuntu-latest
+            online: false
+            load_only: false
+          - name: tests (generic OS, 2/2)
+            test-flags: --generic --coverage --profile 3 --shard=2/2
+            runs-on: ubuntu-latest
+            online: false
+            load_only: false
+    uses: ./.github/workflows/run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      test_flags: ${{ matrix.test-flags }}
+      runs_on: ${{ matrix.runs-on }}
+      online: ${{ matrix.online }}
+      load_only: ${{ matrix.load_only }}
+    secrets:
+      codecov_token: ${{ secrets.CODECOV_TOKEN }}
+
+  tests_linux:
+    name: ${{ matrix.name }}
+    if: github.repository_owner == 'Homebrew'
+    permissions:
+      contents: read
+      code-quality: write
+      pull-requests: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: tests (Linux, 1/2)
+            test-flags: --coverage --profile 3 --shard=1/2
             runs-on: ubuntu-24.04
+            online: false
+            load_only: false
+          - name: tests (Linux, 2/2)
+            test-flags: --coverage --profile 3 --shard=2/2
+            runs-on: ubuntu-24.04
+            online: false
+            load_only: false
+    uses: ./.github/workflows/run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      test_flags: ${{ matrix.test-flags }}
+      runs_on: ${{ matrix.runs-on }}
+      online: ${{ matrix.online }}
+      load_only: ${{ matrix.load_only }}
+    secrets:
+      codecov_token: ${{ secrets.CODECOV_TOKEN }}
+
+  tests_macos:
+    name: ${{ matrix.name }}
+    if: github.repository_owner == 'Homebrew'
+    permissions:
+      contents: read
+      code-quality: write
+      pull-requests: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: tests (macOS, 1/2)
+            test-flags: --coverage --profile 3 --shard=1/2
+            runs-on: macos-26
+            online: false
+            load_only: false
+          - name: tests (macOS, 2/2)
+            test-flags: --coverage --profile 3 --shard=2/2
+            runs-on: macos-26
+            online: false
+            load_only: false
+    uses: ./.github/workflows/run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      test_flags: ${{ matrix.test-flags }}
+      runs_on: ${{ matrix.runs-on }}
+      online: ${{ matrix.online }}
+      load_only: ${{ matrix.load_only }}
+    secrets:
+      codecov_token: ${{ secrets.CODECOV_TOKEN }}
+
+  tests:
+    name: ${{ matrix.name }}
+    if: github.repository_owner == 'Homebrew'
+    permissions:
+      contents: read
+      code-quality: write
+      pull-requests: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
           - name: tests (no Sorbet)
             test-flags: --coverage --profile 3
             runs-on: ubuntu-24.04
-          - name: tests (macOS)
-            test-flags: --coverage --profile 3
-            runs-on: macos-26
+            online: false
+            load_only: false
           - name: tests (load-only Linux)
             test-flags: --load-only
             runs-on: ubuntu-24.04
+            online: false
             load_only: true
           - name: tests (load-only macOS)
             test-flags: --load-only
             runs-on: macos-26
+            online: false
             load_only: true
+    uses: ./.github/workflows/run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      test_flags: ${{ matrix.test-flags }}
+      runs_on: ${{ matrix.runs-on }}
+      online: ${{ matrix.online }}
+      load_only: ${{ matrix.load_only }}
+    secrets:
+      codecov_token: ${{ secrets.CODECOV_TOKEN }}
+
+  tests_online_result:
+    name: tests (online)
+    needs: tests_online
+    if: always()
+    runs-on: ubuntu-slim
     steps:
-      - name: Set up Homebrew
-        id: set-up-homebrew
-        uses: Homebrew/actions/setup-homebrew@a657b8b0cd35d0f65cce41fce9b24cf054b49869 # 2026.08.24.1
-        with:
-          # We only test needs_homebrew_core tests on macOS because
-          # homebrew/core is not available by default on GitHub-hosted Ubuntu
-          # runners, and it's expensive to tap it.
-          # Load-only jobs never run examples, so they don't need it either.
-          core: ${{ runner.os == 'macOS' && matrix.load_only != true }}
-          cask: false
+      - name: Check test results
+        run: test "${{ needs.tests_online.result }}" = success
 
-      - name: Cache Bundler RubyGems
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.set-up-homebrew.outputs.gems-path }}
-          key: ${{ matrix.runs-on }}-tests-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
-          restore-keys: ${{ matrix.runs-on }}-tests-rubygems-
+  tests_generic_os_result:
+    name: tests (generic OS)
+    needs: tests_generic_os
+    if: always()
+    runs-on: ubuntu-slim
+    steps:
+      - name: Check test results
+        run: test "${{ needs.tests_generic_os.result }}" = success
 
-      - run: brew config
+  tests_linux_result:
+    name: tests (Linux)
+    needs: tests_linux
+    if: always()
+    runs-on: ubuntu-slim
+    steps:
+      - name: Check test results
+        run: test "${{ needs.tests_linux.result }}" = success
 
-      - name: Install Bundler RubyGems
-        run: brew install-bundler-gems --groups=all
-
-      - name: Create parallel test log directory
-        run: mkdir tests
-
-      - name: Cache parallel tests log
-        if: matrix.load_only != true
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: tests
-          key: ${{ runner.os }}-${{ matrix.test-flags }}-parallel_runtime_rspec-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-${{ matrix.test-flags }}-parallel_runtime_rspec-
-
-      - name: Install brew tests --online dependencies
-        if: matrix.name == 'tests (online)'
-        uses: Homebrew/actions/cache-homebrew-prefix@a657b8b0cd35d0f65cce41fce9b24cf054b49869 # 2026.08.24.1
-        with:
-          install: curl subversion
-          workflow-key: tests-tests-online
-
-      - name: Install brew tests macOS dependencies
-        if: runner.os != 'Linux' && matrix.load_only != true
-        uses: Homebrew/actions/cache-homebrew-prefix@a657b8b0cd35d0f65cce41fce9b24cf054b49869 # 2026.08.24.1
-        with:
-          install: subversion gnupg
-          workflow-key: tests-tests-macos
-          uninstall: true
-
-        # brew tests doesn't like world writable directories
-      - name: Cleanup permissions
-        if: runner.os == 'Linux'
-        run: sudo chmod -R g-w,o-w /home/linuxbrew/.linuxbrew/Homebrew
-
-      - name: Disable Sorbet runtime
-        if: matrix.name == 'tests (no Sorbet)'
-        run: echo "HOMEBREW_TESTS_NO_SORBET_RUNTIME=1" >> "$GITHUB_ENV"
-
-      - name: Run brew tests
-        if: github.event_name == 'pull_request' || matrix.name != 'tests (online)'
-        run: brew tests ${{ matrix.test-flags }}
-        env:
-          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # These cannot be queried at the macOS level on GitHub Actions.
-          HOMEBREW_LANGUAGES: en-GB
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Get RSpec JUnit XML filenames
-        if: matrix.load_only != true
-        id: junit_xml
-        working-directory: ${{ steps.set-up-homebrew.outputs.repository-path }}
-        run: |
-          mkdir -p Library/Homebrew/test/junit
-          filenames=$(find Library/Homebrew/test/junit -name 'rspec*.xml' -print | tr '\n' ',')
-          echo "filenames=${filenames%,}" >> "$GITHUB_OUTPUT"
-
-      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
-        if: matrix.load_only != true && (github.event_name == 'pull_request' || matrix.name != 'tests (online)')
-        with:
-          working-directory: ${{ steps.set-up-homebrew.outputs.repository-path }}
-          files: ${{ steps.junit_xml.outputs.filenames }}
-          disable_search: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-          report_type: test_results
-
-      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
-        if: matrix.load_only != true && (github.event_name == 'pull_request' || matrix.name != 'tests (online)')
-        with:
-          working-directory: ${{ steps.set-up-homebrew.outputs.repository-path }}
-          files: Library/Homebrew/test/coverage/coverage.xml
-          disable_search: true
-          token: ${{ secrets.CODECOV_TOKEN }}
+  tests_macos_result:
+    name: tests (macOS)
+    needs: tests_macos
+    if: always()
+    runs-on: ubuntu-slim
+    steps:
+      - name: Check test results
+        run: test "${{ needs.tests_macos.result }}" = success
 
   test-bot:
     name: ${{ matrix.name }}
@@ -413,11 +476,7 @@ jobs:
           core: true
           cask: false
 
-      - uses: Homebrew/actions/cache-homebrew-prefix@a657b8b0cd35d0f65cce41fce9b24cf054b49869 # 2026.08.24.1
-        with:
-          install: gnu-tar
-          workflow-key: test-bot
-          uninstall: true
+      - run: brew install gnu-tar
 
       - name: Disable Sorbet runtime
         if: matrix.name == 'test-bot (no Sorbet)'

@@ -1,0 +1,114 @@
+name: Run tests
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+      test_flags:
+        required: true
+        type: string
+      runs_on:
+        required: true
+        type: string
+      online:
+        required: true
+        type: boolean
+      load_only:
+        required: true
+        type: boolean
+    secrets:
+      codecov_token:
+        required: false
+
+defaults:
+  run:
+    shell: bash -xeuo pipefail {0}
+
+jobs:
+  tests:
+    runs-on: ${{ inputs.runs_on }}
+    timeout-minutes: 30
+    steps:
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@a657b8b0cd35d0f65cce41fce9b24cf054b49869 # 2026.08.24.1
+        with:
+          # We only test needs_homebrew_core tests on macOS because
+          # homebrew/core is not available by default on GitHub-hosted Ubuntu
+          # runners, and it's expensive to tap it.
+          # Load-only jobs never run examples, so they don't need it either.
+          core: ${{ runner.os == 'macOS' && inputs.load_only != true }}
+          cask: false
+
+      - name: Cache Bundler RubyGems
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.set-up-homebrew.outputs.gems-path }}
+          key: ${{ inputs.runs_on }}-tests-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
+          restore-keys: ${{ inputs.runs_on }}-tests-rubygems-
+
+      - run: brew config
+
+      - name: Install Bundler RubyGems
+        run: brew install-bundler-gems --groups=all
+
+      - name: Install Subversion
+        if: inputs.online || (runner.os == 'macOS' && inputs.load_only != true)
+        run: brew install subversion
+
+      - name: Create parallel test log directory
+        run: mkdir tests
+
+      - name: Cache parallel tests log
+        if: inputs.load_only != true
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tests
+          key: ${{ runner.os }}-${{ inputs.test_flags }}-parallel_runtime_rspec-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-${{ inputs.test_flags }}-parallel_runtime_rspec-
+
+        # brew tests doesn't like world writable directories
+      - name: Cleanup permissions
+        if: runner.os == 'Linux'
+        run: sudo chmod -R g-w,o-w /home/linuxbrew/.linuxbrew/Homebrew
+
+      - name: Disable Sorbet runtime
+        if: inputs.name == 'tests (no Sorbet)'
+        run: echo "HOMEBREW_TESTS_NO_SORBET_RUNTIME=1" >> "$GITHUB_ENV"
+
+      - name: Run brew tests
+        if: github.event_name == 'pull_request' || inputs.online != true
+        run: brew tests ${{ inputs.test_flags }}
+        env:
+          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # These cannot be queried at the macOS level on GitHub Actions.
+          HOMEBREW_LANGUAGES: en-GB
+          CODECOV_TOKEN: ${{ secrets.codecov_token }}
+
+      - name: Get RSpec JUnit XML filenames
+        if: inputs.load_only != true
+        id: junit_xml
+        working-directory: ${{ steps.set-up-homebrew.outputs.repository-path }}
+        run: |
+          mkdir -p Library/Homebrew/test/junit
+          filenames=$(find Library/Homebrew/test/junit -name 'rspec*.xml' -print | tr '\n' ',')
+          echo "filenames=${filenames%,}" >> "$GITHUB_OUTPUT"
+
+      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        if: inputs.load_only != true && (github.event_name == 'pull_request' || inputs.online != true)
+        with:
+          working-directory: ${{ steps.set-up-homebrew.outputs.repository-path }}
+          files: ${{ steps.junit_xml.outputs.filenames }}
+          disable_search: true
+          token: ${{ secrets.codecov_token }}
+          report_type: test_results
+
+      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        if: inputs.load_only != true && (github.event_name == 'pull_request' || inputs.online != true)
+        with:
+          working-directory: ${{ steps.set-up-homebrew.outputs.repository-path }}
+          files: Library/Homebrew/test/coverage/coverage.xml
+          disable_search: true
+          token: ${{ secrets.codecov_token }}
