@@ -277,13 +277,16 @@ class FormulaInstaller
     bottle = api_bottle || formula.bottle_for_tag(Utils::Bottles.tag)
     return false if bottle.nil?
 
+    fetch_bottle_tab(bottle:, quiet: true) unless bottle.compatible_locations?
+
     unless bottle.compatible_locations?
       if output_warning
-        prefix = Pathname(bottle.cellar.to_s).parent
+        cellar = bottle.built_cellar.to_s
+        prefix = Pathname(cellar).parent
         # Raw prefix strings can only be replaced in place by an equal-or-shorter
         # byte string, so the byte length difference is the fact that matters.
         excess = [HOMEBREW_PREFIX.to_s.bytesize - prefix.to_s.bytesize,
-                  HOMEBREW_CELLAR.to_s.bytesize - bottle.cellar.to_s.bytesize].max
+                  HOMEBREW_CELLAR.to_s.bytesize - cellar.bytesize].max
         cause = if excess.positive?
           "Your prefix is #{excess} bytes longer than the bottle's build prefix."
         elsif excess.negative?
@@ -293,7 +296,7 @@ class FormulaInstaller
         end
         opoo <<~EOS
           Building #{formula.full_name} from source as the bottle needs:
-          - `HOMEBREW_CELLAR=#{bottle.cellar}` (yours is #{HOMEBREW_CELLAR})
+          - `HOMEBREW_CELLAR=#{cellar}` (yours is #{HOMEBREW_CELLAR})
           - `HOMEBREW_PREFIX=#{prefix}` (yours is #{HOMEBREW_PREFIX})
           #{cause}
         EOS
@@ -1525,15 +1528,22 @@ on_request: installed_on_request?, options:)
     end
   end
 
-  sig { params(quiet: T::Boolean, enqueue: T::Boolean).void }
-  def fetch_bottle_tab(quiet: false, enqueue: false)
+  sig { params(quiet: T::Boolean, enqueue: T::Boolean, bottle: T.nilable(Bottle)).void }
+  def fetch_bottle_tab(quiet: false, enqueue: false, bottle: nil)
     return if @fetch_bottle_tab
     return if formula.local_bottle_path
 
-    if (bottle = api_bottle || formula.bottle) &&
-       (manifest_resource = bottle.github_packages_manifest_resource) &&
-       enqueue
-      download_queue.enqueue(manifest_resource) unless manifest_resource.downloaded_and_valid?
+    bottle ||= api_bottle || formula.bottle
+    if bottle && (manifest_resource = bottle.github_packages_manifest_resource)
+      if enqueue
+        download_queue.enqueue(manifest_resource) unless manifest_resource.downloaded_and_valid?
+      else
+        begin
+          bottle.fetch_tab(quiet:)
+        rescue DownloadError, Resource::BottleManifest::Error
+          # do nothing
+        end
+      end
     else
       begin
         formula.fetch_bottle_tab(quiet: quiet)
@@ -1725,13 +1735,16 @@ on_request: installed_on_request?, options:)
                                       cellar: build_cellar)
     end
 
-    cellar = formula.bottle_specification.tag_to_cellar(Utils::Bottles.tag)
+    bottle_specification = formula.bottle_specification
+    tag = Utils::Bottles.tag
+    cellar = bottle_specification.tag_to_cellar(tag)
     return if BottleSpecification::RELOCATABLE_CELLARS.include?(cellar)
 
-    prefix = Pathname(cellar).parent.to_s
-    return if cellar == HOMEBREW_CELLAR.to_s && prefix == HOMEBREW_PREFIX.to_s
+    prefix = tab.built_prefix || Pathname(cellar.to_s).parent.to_s
+    build_cellar = tab.built_prefix ? "#{prefix}/Cellar" : cellar.to_s
+    return if build_cellar == HOMEBREW_CELLAR.to_s && prefix == HOMEBREW_PREFIX.to_s
 
-    return unless Homebrew::EnvConfig.relocate_build_prefix?
+    return if !tab.padded_prefix && !Homebrew::EnvConfig.relocate_build_prefix?
 
     tab.relocated_build_prefix = prefix
     tab.relocated_files = keg.relocate_build_prefix(keg, prefix, HOMEBREW_PREFIX,

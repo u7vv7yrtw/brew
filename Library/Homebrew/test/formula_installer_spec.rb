@@ -296,13 +296,15 @@ RSpec.describe FormulaInstaller do
   end
 
   describe "#pour" do
+    let(:bottle_cellar) { :any_skip_relocation }
     let(:f) do
+      cellar = bottle_cellar
       formula("missing-bottle-tab") do
         T.bind(self, T.class_of(Formula))
         url "https://brew.sh/missing-bottle-tab-1.0.tar.gz"
 
         bottle do
-          sha256 cellar: :any_skip_relocation,
+          sha256 cellar:,
                  Utils::Bottles.tag.to_sym => "d7b9f4e8bf83608b71fe958a99f19f2e5e68bb2582965d32e41759c24f1aef97"
         end
       end
@@ -310,9 +312,11 @@ RSpec.describe FormulaInstaller do
     let(:installer) { Class.new(described_class).new(f) }
     let(:downloader) { instance_double(AbstractDownloadStrategy, basename: "missing-bottle-tab", stage: nil) }
     let(:downloadable) { instance_double(Resource, downloader:) }
+    let(:built_prefix) { nil }
+    let(:padded_prefix) { nil }
     let(:tab) do
       instance_double(Tab, changed_files: nil, linkage_files: nil, binary_relocation_files: nil,
-                      built_prefix: nil, source: { "versions" => {} }, write: nil).as_null_object
+                      built_prefix:, padded_prefix:, source: { "versions" => {} }, write: nil).as_null_object
     end
     let(:keg) { instance_double(Keg) }
 
@@ -356,6 +360,23 @@ RSpec.describe FormulaInstaller do
             stderr.include?("sh.brew.tab") && stderr.include?("HOMEBREW_ARTIFACT_DOMAIN")
         end).to_stderr
     end
+
+    context "with a padded bottle" do
+      let(:bottle_cellar) { Utils::Bottles.tag.default_cellar }
+      let(:built_prefix) { "/#{"p" * 63}" }
+      let(:padded_prefix) { true }
+
+      it "patches the recorded build prefix without the legacy opt-in" do
+        relocated_files = [Pathname("bin/test")]
+        expect(keg).to receive(:relocate_build_prefix)
+          .with(keg, built_prefix, HOMEBREW_PREFIX, files: nil)
+          .and_return(relocated_files)
+        expect(tab).to receive(:relocated_build_prefix=).with(built_prefix)
+        expect(tab).to receive(:relocated_files=).with(relocated_files)
+
+        installer.pour
+      end
+    end
   end
 
   describe "#pour_bottle? with a bottle built for another prefix" do
@@ -382,6 +403,16 @@ RSpec.describe FormulaInstaller do
       installer = installer_for_cellar("#{HOMEBREW_PREFIX}-longer/Cellar")
 
       expect { installer.pour_bottle?(output_warning: true) }.to output(/7 bytes shorter than/).to_stderr
+    end
+
+    it "fetches tab metadata before deciding an incompatible bottle cannot pour" do
+      installer = installer_for_cellar(Utils::Bottles.tag.default_cellar)
+      bottle = installer.formula.bottle_for_tag(Utils::Bottles.tag)
+      allow(installer).to receive(:api_bottle).and_return(bottle)
+      expect(bottle).to receive(:compatible_locations?).and_return(false, true)
+      expect(installer).to receive(:fetch_bottle_tab).with(bottle:, quiet: true)
+
+      expect(installer.pour_bottle?).to be true
     end
   end
 

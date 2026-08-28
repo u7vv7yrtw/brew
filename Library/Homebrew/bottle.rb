@@ -200,7 +200,19 @@ class Bottle
 
   sig { returns(T::Boolean) }
   def compatible_locations?
-    @spec.compatible_locations?(tag: @tag)
+    tab = tab_attributes
+    @spec.compatible_locations?(tag: @tag, built_prefix: tab["built_prefix"],
+                                padded_prefix: tab["padded_prefix"] == true)
+  end
+
+  sig { returns(T.any(Symbol, String)) }
+  def built_cellar
+    tab = tab_attributes
+    if tab["padded_prefix"] == true && (built_prefix = tab["built_prefix"])
+      "#{built_prefix}/Cellar"
+    else
+      @spec.tag_to_cellar(@tag)
+    end
   end
 
   # Does the bottle need to be relocated?
