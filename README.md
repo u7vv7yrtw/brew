@@ -1,35 +1,26 @@
-# typed: strict
-# frozen_string_literal: true
+# Homebrew
 
-module Homebrew
-  # Configuration settings driven by environment variables.
-  module EnvConfig
-    class << self
-      extend T::Sig
+The missing package manager for macOS (or Linux).
 
-      # Returns true if HOMEBREW_NO_AUTO_UPDATE is set.
-      sig { returns(T::Boolean) }
-      def no_auto_update?
-        ENV["HOMEBREW_NO_AUTO_UPDATE"].present?
-      end
+## Installation
 
-      # Returns true if HOMEBREW_NO_ANALYTICS is set.
-      sig { returns(T::Boolean) }
-      def no_analytics?
-        ENV["HOMEBREW_NO_ANALYTICS"].present?
-      end
+```sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
 
-      # Returns true if HOMEBREW_VERBOSE is set.
-      sig { returns(T::Boolean) }
-      def verbose?
-        ENV["HOMEBREW_VERBOSE"].present?
-      end
+## Documentation
 
-      # Returns true if HOMEBREW_DEBUG is set.
-      sig { returns(T::Boolean) }
-      def debug?
-        ENV["HOMEBREW_DEBUG"].present?
-      end
-    end
-  end
-end
+See [`docs.brew.sh`](https://docs.brew.sh).
+
+## Community
+
+- [Homebrew Discussions](https://github.com/orgs/Homebrew/discussions)
+- [@Homebrew on Mastodon](https://fosstodon.org/@homebrew)
+
+## Contributing
+
+Please read [our contributing guidelines](https://docs.brew.sh/How-To-Comply-with-the-License) and [Code of Conduct](https://github.com/Homebrew/.github/blob/master/CODE_OF_CONDUCT.md).
+
+## License
+
+Homebrew is licensed under the [BSD 2-Clause "Simplified" License](LICENSE.txt).
