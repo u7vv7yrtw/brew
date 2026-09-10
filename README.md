@@ -1,26 +1,32 @@
-# Homebrew
+# typed: true
+# frozen_string_literal: true
 
-The missing package manager for macOS (or Linux).
+# Helper methods for formatting terminal output.
+module Formatter
+  module_function
 
-## Installation
+  # Format a headline string with arrow prompt.
+  def arrow(string, color: :bold)
+    "#{Tty.send(color)}==>#{Tty.reset} #{string}"
+  end
 
-```sh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
+  # Format a main headline string.
+  def headline(string, color: :bold)
+    "#{Tty.send(color)}==> #{string}#{Tty.reset}"
+  end
 
-## Documentation
+  # Format a success message string.
+  def success(string, color: :green)
+    "#{Tty.send(color)}#{string}#{Tty.reset}"
+  end
 
-See [`docs.brew.sh`](https://docs.brew.sh).
+  # Format an error message string with red prefix.
+  def error(string, color: :red)
+    "#{Tty.send(color)}Error:#{Tty.reset} #{string}"
+  end
 
-## Community
-
-- [Homebrew Discussions](https://github.com/orgs/Homebrew/discussions)
-- [@Homebrew on Mastodon](https://fosstodon.org/@homebrew)
-
-## Contributing
-
-Please read [our contributing guidelines](https://docs.brew.sh/How-To-Comply-with-the-License) and [Code of Conduct](https://github.com/Homebrew/.github/blob/master/CODE_OF_CONDUCT.md).
-
-## License
-
-Homebrew is licensed under the [BSD 2-Clause "Simplified" License](LICENSE.txt).
+  # Format a warning message string with yellow prefix.
+  def warning(string, color: :yellow)
+    "#{Tty.send(color)}Warning:#{Tty.reset} #{string}"
+  end
+end
